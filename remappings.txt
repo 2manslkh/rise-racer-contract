@@ -1,0 +1,6 @@
+@openzeppelin/=lib/openzeppelin-contracts/
+openzeppelin-contracts/=lib/openzeppelin-contracts/contracts/
+forge-std/=lib/forge-std/src/
+dependencies/lib/openzeppelin-contracts/=lib/dependencies/lib/openzeppelin-contracts/
+dependencies/lib/dynamic-contracts/=lib/dependencies/lib/dynamic-contracts/
+dependencies/lib/openzeppelin-contracts-upgradeable/=lib/dependencies/lib/openzeppelin-contracts-upgradeable
