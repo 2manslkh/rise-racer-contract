@@ -47,4 +47,9 @@ interface IRiseRacers {
     /// @param player Address of the player
     /// @return Amount of velocity gained per click
     function getClickPower(address player) external view returns (uint256);
+
+    /// @notice Get player's base click power (velocity per click)
+    /// @param player Address of the player
+    /// @return Amount of velocity gained per click
+    function getBaseClickPower(address player) external view returns (uint256);
 }

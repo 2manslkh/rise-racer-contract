@@ -26,26 +26,6 @@ contract RiseRacersGameTest is RiseRacersTest {
         vm.stopPrank();
     }
 
-    function testClickPowerCalculation() public {
-        vm.startPrank(PLAYER_ONE);
-
-        // Base click power should be 1
-        uint256 basePower = game.getClickPower(PLAYER_ONE);
-        assertEq(basePower, 1);
-
-        // Mint and equip a common engine part
-        equipPart(
-            PLAYER_ONE,
-            ICosmicParts.PartType.Engine,
-            ICosmicParts.Rarity.Common
-        );
-
-        // Power should increase by ENGINE_BASE_BOOST (10)
-        uint256 boostedPower = game.getClickPower(PLAYER_ONE);
-        assertEq(boostedPower, 11);
-        vm.stopPrank();
-    }
-
     function testPause() public {
         vm.prank(OWNER);
         game.pause();

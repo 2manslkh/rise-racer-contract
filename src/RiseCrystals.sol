@@ -46,6 +46,28 @@ contract RiseCrystals is ERC20 {
     }
 
     /**
+     * @dev Allows the CosmicParts contract to pay for upgrades.
+     * @param from The address of the sender.
+     * @param to The address of the recipient.
+     * @param value The amount of tokens to transfer.
+     * @return true if the transfer was successful.
+     */
+    function pay(
+        address from,
+        address to,
+        uint256 value
+    ) external returns (bool) {
+        // Only the CosmicParts contract can use this function
+        address spender = registry.getAddress(registry.COSMIC_PARTS());
+        require(
+            msg.sender == spender,
+            "Only CosmicParts contract can call this function"
+        );
+        _transfer(from, to, value);
+        return true;
+    }
+
+    /**
      * @dev Overrides the internal {_spendAllowance} function to allow the
      * registered CosmicParts contract to spend tokens without explicit approval.
      * For all other spenders, it behaves identically to the standard ERC20 implementation.

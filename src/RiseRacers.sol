@@ -77,10 +77,8 @@ contract RiseRacers is IRiseRacers, Ownable, ReentrancyGuard, Pausable {
 
         // Calculate velocity gain
         uint256 clickPower = getClickPower(msg.sender);
-        uint256 universeMultiplier = IUniverseManager(
-            registry.getUniverseManager()
-        ).getUniverseMultiplier(msg.sender);
-        uint256 velocityGain = clickPower * universeMultiplier;
+
+        uint256 velocityGain = clickPower;
 
         // Update player state
         player.velocity += velocityGain;
@@ -106,26 +104,23 @@ contract RiseRacers is IRiseRacers, Ownable, ReentrancyGuard, Pausable {
         return players[player];
     }
 
-    function getClickPower(
+    function getBaseClickPower(
         address player
     ) public view override returns (uint256) {
-        // Check binding for the player whose power is being checked
-        // Note: Depending on game design, you might want to enforce binding here too,
-        // or only enforce it for the active click() action. Currently enforced only in click().
-        // require(binderToBound[player] != address(0), "RiseRacers: Player address not bound");
-
         // Get base click power (1) plus boosts from parts
-        (uint256 baseBoost, uint256 percentageBoost) = ICosmicParts(
-            registry.getCosmicParts()
-        ).getTotalBoost(player);
-        uint256 baseClickPower = 1 + baseBoost;
-
-        // Apply percentage boost
-        if (percentageBoost > 0) {
-            baseClickPower += (baseClickPower * percentageBoost) / 100;
-        }
+        uint256 totalBoost = ICosmicParts(registry.getCosmicParts())
+            .getTotalBoost(player);
+        uint256 baseClickPower = 1 + totalBoost;
 
         return baseClickPower;
+    }
+
+    function getClickPower(address player) public view returns (uint256) {
+        uint256 baseClickPower = getBaseClickPower(player);
+        uint256 universeMultiplier = IUniverseManager(
+            registry.getUniverseManager()
+        ).getUniverseMultiplier(player);
+        return baseClickPower * universeMultiplier;
     }
 
     // Admin functions

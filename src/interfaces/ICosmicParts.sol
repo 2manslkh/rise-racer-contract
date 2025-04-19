@@ -9,25 +9,12 @@ interface ICosmicParts {
         Wheels
     }
 
-    enum Rarity {
-        Common,
-        Rare,
-        Epic,
-        Legendary
-    }
-
     struct CosmicPart {
         PartType partType;
-        Rarity rarity;
-        uint256 baseBoost;
-        uint256 percentageBoost;
+        uint256 level;
     }
 
-    function mintPart(address to, PartType partType, Rarity rarity) external;
+    function upgradePart(PartType partType) external;
 
-    function getTotalBoost(
-        address player
-    ) external view returns (uint256 baseBoost, uint256 percentageBoost);
-
-    function equipPart(uint256 tokenId) external;
+    function getTotalBoost(address player) external view returns (uint256);
 }

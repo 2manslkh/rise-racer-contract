@@ -32,9 +32,9 @@ contract DeployScript is Script {
             address(2), // temporary MilestoneTracker
             address(3), // temporary UniverseManager
             address(4), // temporary VelocityManager
-            address(5),
-            address(staking),
-            address(0) // temporary RiseCrystals
+            address(5), // temporary CosmicParts
+            address(staking), // temporary Staking
+            address(7) // temporary RiseCrystals
         );
 
         // Step 3: Deploy contracts that need registry

@@ -40,7 +40,8 @@ forge script script/Deploy.s.sol:DeployScript \
     --broadcast \
     --verify \
     --verifier blockscout \
-    --verifier-url $EXPLORER_API_URL
+    --verifier-url $EXPLORER_API_URL \
+    -vvvv
 
 DEPLOY_STATUS=$?
 

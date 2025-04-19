@@ -1,48 +1,63 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import "./interfaces/ICosmicParts.sol";
 import "./interfaces/IRegistry.sol";
 import "./interfaces/IRiseCrystals.sol";
+import "./Curves.sol";
 import "openzeppelin-contracts/token/ERC721/extensions/ERC721URIStorage.sol";
 import "openzeppelin-contracts/access/Ownable.sol";
 import "openzeppelin-contracts/token/ERC20/utils/SafeERC20.sol";
 
-contract CosmicParts is ICosmicParts, ERC721URIStorage, Ownable {
+contract CosmicParts is ERC721URIStorage, Ownable, Curves {
     using SafeERC20 for IRiseCrystals;
+
+    // --- Structs ---
+    struct CosmicPart {
+        PartType partType;
+        uint256 level;
+    }
+    // Enums
+    enum PartType {
+        Engine,
+        Turbo,
+        Chassis,
+        Wheels
+    }
 
     // State variables
     IRegistry public registry;
-    mapping(uint256 => CosmicPart) public parts;
+    mapping(uint256 => CosmicPart) internal parts;
     mapping(address => mapping(PartType => uint256)) public equippedParts;
-    mapping(PartType => mapping(Rarity => uint256)) public mintedSupply;
+    mapping(PartType => uint256) public mintedSupply;
     uint256 private nextTokenId = 1;
+    string private __baseURI;
 
     // Constants
-    uint256 public constant BASE_CRYSTAL_MINT_COST = 10000 ether;
-    uint256 public constant MAX_SUPPLY_PER_TYPE = 10000;
+    // uint256 public constant MAX_SUPPLY_PER_TYPE = 10000; // Removed
 
     // Base boosts for each part type
     uint256 private constant ENGINE_BASE_BOOST = 10;
-    uint256 private constant ENGINE_PERCENT_BOOST = 1; // 100%
+    uint256 private constant ENGINE_PERCENT_BOOST = 1;
     uint256 private constant TURBO_BASE_BOOST = 5;
-    uint256 private constant TURBO_PERCENT_BOOST = 5; // 500%
+    uint256 private constant TURBO_PERCENT_BOOST = 5;
     uint256 private constant CHASSIS_BASE_BOOST = 3;
-    uint256 private constant CHASSIS_PERCENT_BOOST = 3; // 300%
+    uint256 private constant CHASSIS_PERCENT_BOOST = 3;
     uint256 private constant WHEELS_BASE_BOOST = 2;
-    uint256 private constant WHEELS_PERCENT_BOOST = 2; // 200%
+    uint256 private constant WHEELS_PERCENT_BOOST = 2;
 
     // Events
     event PartMinted(
-        address indexed to,
+        address indexed owner,
         uint256 indexed tokenId,
         PartType partType,
-        Rarity rarity
+        uint256 cost
     );
-    event PartEquipped(
-        address indexed player,
+    event PartUpgraded(
+        address indexed owner,
         uint256 indexed tokenId,
-        PartType partType
+        PartType partType,
+        uint256 newLevel,
+        uint256 cost
     );
 
     constructor(
@@ -53,172 +68,164 @@ contract CosmicParts is ICosmicParts, ERC721URIStorage, Ownable {
     }
 
     /**
-     * @notice Mints a new Cosmic Part NFT, requiring payment in RiseCrystals and checking max supply.
-     * @dev Caller must have approved this contract to spend sufficient RiseCrystals beforehand.
-     * @param to The address to mint the part to.
-     * @param partType The type of the part.
-     * @param rarity The rarity of the part.
+     * @notice Upgrades the specified part type for the caller.
+     * @dev If the caller does not have the part type equipped, it mints a Level 1 part.
+     *      Otherwise, it upgrades the existing equipped part to the next level.
+     *      Payment is required in RiseCrystals based on the curve cost.
+     * @param partType The type of part to upgrade or mint.
      */
-    function mintPart(
-        address to,
-        PartType partType,
-        Rarity rarity
-    ) external override {
-        require(
-            mintedSupply[partType][rarity] < MAX_SUPPLY_PER_TYPE,
-            "Max supply reached for this part type"
-        );
+    function upgradePart(PartType partType) external {
+        uint256 currentTokenId = equippedParts[msg.sender][partType];
+        uint256 cost; // Cost in 1e8 scale
+        uint256 crystalCost; // Cost in 1e18 scale
 
-        mintedSupply[partType][rarity]++;
+        if (currentTokenId == 0) {
+            // Mint new Level 1 part
+            require(partType <= PartType.Wheels, "Invalid PartType"); // Ensure valid enum
 
-        (uint256 baseBoost, uint256 percentBoost) = _getBoostValues(
-            partType,
-            rarity
-        );
+            // Cost for Level 1
+            if (partType == PartType.Engine) cost = getEngineCost(1);
+            else if (partType == PartType.Turbo) cost = getTurboCost(1);
+            else if (partType == PartType.Chassis) cost = getChassisCost(1);
+            else if (partType == PartType.Wheels) cost = getWheelCost(1);
 
-        require(baseBoost > 0 && percentBoost > 0, "Boosts cannot be zero");
-        uint256 crystalCost = BASE_CRYSTAL_MINT_COST * baseBoost * percentBoost;
+            require(cost > 0, "Level 1 cost cannot be zero");
+            crystalCost = cost * 1e10; // Scale to 1e18
 
+            // Payment
+            _takePayment(crystalCost);
+
+            // Create and Assign
+            uint256 newTokenId = _createPartNFT(msg.sender, partType);
+            _assignEquippedPart(msg.sender, newTokenId, partType);
+
+            // Emit Mint Event
+            emit PartMinted(msg.sender, newTokenId, partType, crystalCost);
+        } else {
+            // Upgrade existing part
+            CosmicPart storage part = parts[currentTokenId];
+            // Basic check that stored partType matches requested partType (should always match)
+            require(part.partType == partType, "Token data mismatch");
+
+            uint256 currentLevel = part.level;
+            uint256 nextLevel = currentLevel + 1;
+
+            // Cost for next level
+            if (partType == PartType.Engine) cost = getEngineCost(nextLevel);
+            else if (partType == PartType.Turbo) cost = getTurboCost(nextLevel);
+            else if (partType == PartType.Chassis)
+                cost = getChassisCost(nextLevel);
+            else if (partType == PartType.Wheels)
+                cost = getWheelCost(nextLevel);
+
+            require(cost > 0, "Upgrade cost cannot be zero");
+            crystalCost = cost * 1e10; // Scale to 1e18
+
+            // Payment
+            _takePayment(crystalCost);
+
+            // Apply Upgrade
+            part.level = nextLevel;
+
+            // Emit Upgrade Event
+            emit PartUpgraded(
+                msg.sender,
+                currentTokenId,
+                partType,
+                nextLevel,
+                crystalCost
+            );
+        }
+    }
+
+    // --- Internal Payment Helper ---
+    function _takePayment(uint256 crystalCost) internal {
         address riseCrystalsAddress = registry.getAddress(
             registry.RISE_CRYSTALS()
         );
         require(
             riseCrystalsAddress != address(0),
-            "RiseCrystals address not set in Registry"
+            "RiseCrystals address not set"
         );
         IRiseCrystals riseCrystalsToken = IRiseCrystals(riseCrystalsAddress);
+        riseCrystalsToken.pay(msg.sender, address(this), crystalCost);
+    }
 
-        riseCrystalsToken.safeTransferFrom(
-            msg.sender,
-            address(this),
-            crystalCost
-        );
+    // --- Internal Minting Helper (Renamed) ---
+    function _createPartNFT(
+        address to,
+        PartType partType
+    ) internal returns (uint256 tokenId) {
+        mintedSupply[partType]++; // Still track total minted per type for curve input
 
-        uint256 currentTokenId = nextTokenId;
-        parts[currentTokenId] = CosmicPart({
-            partType: partType,
-            rarity: rarity,
-            baseBoost: baseBoost,
-            percentageBoost: percentBoost
-        });
+        tokenId = nextTokenId;
+        parts[tokenId] = CosmicPart({partType: partType, level: 1}); // Mint at level 1
 
-        _mint(to, currentTokenId);
-        _setTokenURI(currentTokenId, _generateTokenURI(partType, rarity));
-        emit PartMinted(to, currentTokenId, partType, rarity);
+        _mint(to, tokenId); // Actual ERC721 mint
+        _setTokenURI(tokenId, _generateTokenURI(partType));
+
         nextTokenId++;
+    }
+
+    // --- Internal Equipping Helper (Renamed) ---
+    function _assignEquippedPart(
+        address player,
+        uint256 tokenId,
+        PartType partType
+    ) internal {
+        require(parts[tokenId].partType == partType, "Token ID mismatch");
+        equippedParts[player][partType] = tokenId;
+    }
+
+    // --- Explicit Getter for Parts Data ---
+    function getPartData(
+        uint256 tokenId
+    ) public view returns (CosmicPart memory) {
+        return parts[tokenId]; // Return the struct directly
     }
 
     function getTotalBoost(
         address player
-    )
-        external
-        view
-        override
-        returns (uint256 baseBoost, uint256 percentageBoost)
-    {
+    ) external view returns (uint256 totalPower) {
         for (uint256 i = 0; i < 4; i++) {
-            PartType partType = PartType(i);
-            uint256 equippedTokenId = equippedParts[player][partType];
+            PartType loopPartType = PartType(i);
+            uint256 equippedTokenId = equippedParts[player][loopPartType];
             if (equippedTokenId != 0) {
-                CosmicPart storage part = parts[equippedTokenId];
-                baseBoost += part.baseBoost;
-                percentageBoost += part.percentageBoost;
+                if (parts[equippedTokenId].partType == loopPartType) {
+                    // --- How to get boost from level? Needs separate logic ---
+                    // Option 1: Use Curves.sol velocity functions?
+                    // Option 2: Define boost logic here based on part.level
+                    // Example using Curves velocity (assuming linear boost based on level):
+                    uint256 partLevel = parts[equippedTokenId].level;
+                    if (loopPartType == PartType.Engine) {
+                        totalPower += getEngineVelocity(partLevel); // Example base boost
+                    } else if (loopPartType == PartType.Turbo) {
+                        totalPower += getTurboVelocity(partLevel);
+                    } else if (loopPartType == PartType.Chassis) {
+                        totalPower += getChassisVelocity(partLevel);
+                    } else if (loopPartType == PartType.Wheels) {
+                        totalPower += getWheelVelocity(partLevel);
+                    }
+                }
             }
         }
     }
 
-    function getTotalBoostValue(
-        address player
-    ) external view returns (uint256) {
-        uint256 totalBaseBoost = 1;
-        uint256 totalPercentageBoost = 0;
-        uint256 totalBoostValue = 1;
-        for (uint256 i = 0; i < 4; i++) {
-            PartType partType = PartType(i);
-            uint256 equippedTokenId = equippedParts[player][partType];
-            if (equippedTokenId != 0) {
-                CosmicPart storage part = parts[equippedTokenId];
-                totalBaseBoost += part.baseBoost;
-                totalPercentageBoost += part.percentageBoost;
-            }
-        }
-        totalBoostValue = totalBaseBoost * totalPercentageBoost;
-        return (totalBoostValue);
-    }
-
-    /**
-     * @notice Equips a part NFT, which also burns the NFT.
-     * @param tokenId The ID of the part NFT to equip.
-     */
-    function equipPart(uint256 tokenId) external override {
-        require(_ownerOf(tokenId) != address(0), "Part does not exist");
-        require(ownerOf(tokenId) == msg.sender, "Not owner of part");
-
-        CosmicPart storage part = parts[tokenId];
-        address player = msg.sender;
-
-        uint256 currentEquipped = equippedParts[player][part.partType];
-        if (currentEquipped != 0) {
-            equippedParts[player][part.partType] = 0;
-        }
-
-        equippedParts[player][part.partType] = tokenId;
-        emit PartEquipped(player, tokenId, part.partType);
-
-        _burn(tokenId);
-    }
-
-    // Internal functions
-    function _getBoostValues(
-        PartType partType,
-        Rarity rarity
-    ) internal pure returns (uint256 baseBoost, uint256 percentBoost) {
-        uint256 rarityMultiplier;
-        if (rarity == Rarity.Common) rarityMultiplier = 1;
-        else if (rarity == Rarity.Rare) rarityMultiplier = 3;
-        else if (rarity == Rarity.Epic) rarityMultiplier = 6;
-        else if (rarity == Rarity.Legendary) rarityMultiplier = 10;
-
-        if (partType == PartType.Engine) {
-            baseBoost = ENGINE_BASE_BOOST * rarityMultiplier;
-            percentBoost = ENGINE_PERCENT_BOOST * rarityMultiplier;
-        } else if (partType == PartType.Turbo) {
-            baseBoost = TURBO_BASE_BOOST * rarityMultiplier;
-            percentBoost = TURBO_PERCENT_BOOST * rarityMultiplier;
-        } else if (partType == PartType.Chassis) {
-            baseBoost = CHASSIS_BASE_BOOST * rarityMultiplier;
-            percentBoost = CHASSIS_PERCENT_BOOST * rarityMultiplier;
-        } else if (partType == PartType.Wheels) {
-            baseBoost = WHEELS_BASE_BOOST * rarityMultiplier;
-            percentBoost = WHEELS_PERCENT_BOOST * rarityMultiplier;
-        }
-    }
-
+    // --- Internal URI Generation ---
     function _generateTokenURI(
-        PartType partType,
-        Rarity rarity
-    ) internal pure returns (string memory) {
-        return
-            string(
-                abi.encodePacked(
-                    "part/",
-                    uint256(partType),
-                    "/",
-                    uint256(rarity)
-                )
-            );
+        PartType partType
+    ) internal view returns (string memory) {
+        return string(abi.encodePacked(__baseURI, uint256(partType)));
     }
 
-    /**
-     * @notice Allows the owner to withdraw accumulated RiseCrystals tokens from this contract.
-     */
+    // --- Owner Functions (Remain Public) ---
     function withdrawCrystals() external onlyOwner {
         address riseCrystalsAddress = registry.getAddress(
             registry.RISE_CRYSTALS()
         );
         require(
             riseCrystalsAddress != address(0),
-            "RiseCrystals address not set in Registry"
+            "RiseCrystals address not set"
         );
         IRiseCrystals riseCrystalsToken = IRiseCrystals(riseCrystalsAddress);
 
@@ -226,5 +233,21 @@ contract CosmicParts is ICosmicParts, ERC721URIStorage, Ownable {
         if (balance > 0) {
             riseCrystalsToken.safeTransfer(owner(), balance);
         }
+    }
+
+    function setBaseURI(string memory uri) external onlyOwner {
+        __baseURI = uri;
+    }
+
+    // --- ERC721 URI Storage Overrides ---
+    function _baseURI() internal view override returns (string memory) {
+        return __baseURI;
+    }
+
+    // --- ERC165 Interface Support (Remains Public) ---
+    function supportsInterface(
+        bytes4 interfaceId
+    ) public view virtual override(ERC721URIStorage) returns (bool) {
+        return super.supportsInterface(interfaceId);
     }
 }

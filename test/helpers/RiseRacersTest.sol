@@ -101,18 +101,4 @@ abstract contract RiseRacersTest is Test {
     function reachLightSpeed(address player) internal {
         addVelocity(player, 299792458); // Speed of light in m/s
     }
-
-    function equipPart(
-        address player,
-        ICosmicParts.PartType partType,
-        ICosmicParts.Rarity rarity
-    ) internal {
-        vm.startPrank(OWNER);
-        cosmicParts.mintPart(player, partType, rarity);
-        vm.stopPrank();
-
-        vm.startPrank(player);
-        cosmicParts.equipPart(1); // Assumes this is the first part minted
-        vm.stopPrank();
-    }
 }

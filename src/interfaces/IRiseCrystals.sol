@@ -16,4 +16,10 @@ interface IRiseCrystals is IERC20 {
      * - Caller must have minting permissions.
      */
     function mint(address account, uint256 amount) external;
+
+    function pay(
+        address from,
+        address to,
+        uint256 value
+    ) external returns (bool);
 }
