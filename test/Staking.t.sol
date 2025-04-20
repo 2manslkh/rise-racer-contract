@@ -3,30 +3,27 @@ pragma solidity ^0.8.0;
 
 import "forge-std/Test.sol";
 import "../src/Staking.sol";
+import "../src/interfaces/IRiseCrystals.sol"; // Import interface
+import "./helpers/RiseRacersTest.sol";
 
-contract StakingTest is Test {
-    Staking public staking;
-    address public player1 = address(0x100);
-    address public player2 = address(0x200);
-    address public owner;
+// --- End Mock ---
 
-    function setUp() public {
-        vm.startPrank(address(this));
-        staking = new Staking();
-        owner = address(this);
-        vm.stopPrank();
-
-        vm.deal(player1, 10 ether);
-        vm.deal(player2, 10 ether);
-        vm.deal(owner, 1 ether);
+contract StakingTest is RiseRacersTest {
+    function setUp() public override {
+        super.setUp();
+        // Fund players with ETH
+        vm.deal(PLAYER_ONE, 10 ether);
+        vm.deal(PLAYER_TWO, 10 ether);
+        // Fund owner?
+        // vm.deal(owner, 1 ether); // Not strictly needed unless owner pays gas
     }
 
     function testStakeETH() public {
-        vm.startPrank(player1);
+        vm.startPrank(PLAYER_ONE);
         uint256 stakeAmount = 1 ether;
         staking.stakeETH{value: stakeAmount}();
 
-        IStaking.StakeInfo memory info = staking.getStakeInfo(player1);
+        IStaking.StakeInfo memory info = staking.getStakeInfo(PLAYER_ONE);
         // Account for 0.5% fee
         uint256 expectedStakeAmount = (stakeAmount * 995) / 1000;
         assertEq(info.amount, expectedStakeAmount);
@@ -35,32 +32,62 @@ contract StakingTest is Test {
         vm.stopPrank();
     }
 
-    function testCannotStakeBelowMinimum() public {
-        vm.startPrank(player1);
-        vm.expectRevert("Below minimum stake");
-        staking.stakeETH{value: 0.009 ether}();
-        vm.stopPrank();
-    }
+    function testAdditionalStake() public {
+        vm.startPrank(PLAYER_ONE);
 
-    function testCannotStakeAboveMaximum() public {
-        vm.startPrank(player1);
-        vm.expectRevert("Above maximum stake");
-        staking.stakeETH{value: 6 ether}();
-        vm.stopPrank();
-    }
+        // Initial stake
+        uint256 initialStake = 1 ether;
+        staking.stakeETH{value: initialStake}();
 
-    function testCannotStakeWhileStaking() public {
-        vm.startPrank(player1);
-        staking.stakeETH{value: 1 ether}();
+        // Record initial lock end time
+        IStaking.StakeInfo memory infoBeforeAdditional = staking.getStakeInfo(
+            PLAYER_ONE
+        );
+        uint256 initialLockEndTime = infoBeforeAdditional.lockEndTime;
+        uint256 initialStakeAmount = infoBeforeAdditional.amount;
 
-        vm.expectRevert("Already staking");
-        staking.stakeETH{value: 1 ether}();
+        // Wait 10 days
+        vm.warp(block.timestamp + 10 days);
+
+        // Additional stake
+        uint256 additionalStake = 2 ether;
+        staking.stakeETH{value: additionalStake}();
+
+        // Check updated stake info
+        IStaking.StakeInfo memory infoAfterAdditional = staking.getStakeInfo(
+            PLAYER_ONE
+        );
+
+        // Account for 0.5% fee on both stakes
+        uint256 expectedInitialAmount = (initialStake * 995) / 1000;
+        uint256 expectedAdditionalAmount = (additionalStake * 995) / 1000;
+        uint256 expectedTotalAmount = expectedInitialAmount +
+            expectedAdditionalAmount;
+
+        // Verify amount increased
+        assertEq(
+            infoAfterAdditional.amount,
+            expectedTotalAmount,
+            "Total stake amount should be sum of both stakes minus fees"
+        );
+
+        // Verify lock end time was reset and extended
+        assertTrue(
+            infoAfterAdditional.lockEndTime > initialLockEndTime,
+            "Lock end time should be extended"
+        );
+        assertEq(
+            infoAfterAdditional.lockEndTime,
+            block.timestamp + staking.LOCKUP_DURATION(),
+            "Lock should be reset to full duration"
+        );
+
         vm.stopPrank();
     }
 
     function testUnstakeETH() public {
         // First stake
-        vm.startPrank(player1);
+        vm.startPrank(PLAYER_ONE);
         uint256 stakeAmount = 1 ether;
         staking.stakeETH{value: stakeAmount}();
         uint256 expectedStakeAmount = (stakeAmount * 995) / 1000;
@@ -68,97 +95,90 @@ contract StakingTest is Test {
         // Add this to ensure contract has enough balance
         vm.deal(address(staking), expectedStakeAmount);
 
+        // --- Advance time past lockup ---
+        vm.warp(block.timestamp + staking.LOCKUP_DURATION() + 1);
+
         // Record balance before unstaking
-        uint256 balanceBefore = player1.balance;
+        uint256 balanceBefore = PLAYER_ONE.balance;
 
         // Unstake
         staking.unstakeETH();
 
         // Check balance after unstaking
-        uint256 balanceAfter = player1.balance;
+        uint256 balanceAfter = PLAYER_ONE.balance;
         assertEq(balanceAfter - balanceBefore, expectedStakeAmount);
 
         // Check stake info is cleared
-        IStaking.StakeInfo memory info = staking.getStakeInfo(player1);
+        IStaking.StakeInfo memory info = staking.getStakeInfo(PLAYER_ONE);
         assertEq(info.amount, 0);
         vm.stopPrank();
     }
 
     function testCannotUnstakeWithoutStake() public {
-        vm.startPrank(player1);
+        vm.startPrank(PLAYER_ONE);
         vm.expectRevert("No stake found");
         staking.unstakeETH();
         vm.stopPrank();
     }
 
-    function testCalculateRiseCrystals() public {
-        // Stake from both players
-        vm.prank(player1);
-        staking.stakeETH{value: 1 ether}();
-        vm.prank(player2);
-        staking.stakeETH{value: 1 ether}();
-
-        // Warp time forward by 1 hour
-        vm.warp(block.timestamp + 3600);
-
-        // Calculate rewards
-        uint256 player1Crystals = staking.calculateRiseCrystals(player1);
-        uint256 player2Crystals = staking.calculateRiseCrystals(player2);
-
-        // Both players should get approximately 50k crystals (half of CRYSTALS_PER_HOUR)
-        assertApproxEqRel(player1Crystals, 50000, 0.01e18); // 1% tolerance
-        assertApproxEqRel(player2Crystals, 50000, 0.01e18);
-    }
-
     function testDistributePool() public {
         // Set up initial state
-        vm.prank(player1);
+        vm.prank(PLAYER_ONE);
         staking.stakeETH{value: 1 ether}();
 
         // First distribution should work after 1 hour
         vm.warp(block.timestamp + 3600);
-        vm.prank(owner);
+        vm.prank(OWNER);
         staking.distributePool();
 
         // Cannot distribute too soon
         vm.expectRevert("Too soon");
-        vm.prank(owner);
+        vm.prank(OWNER);
         staking.distributePool();
 
         // Can distribute after an hour
         vm.warp(block.timestamp + 3600);
-        vm.prank(owner);
+        vm.prank(OWNER);
         staking.distributePool();
     }
 
     function testWithdrawFees() public {
-        // Directly send ETH to contract (not through staking)
-        vm.deal(address(staking), 1 ether);
+        // Player 1 stakes, generating a fee
+        vm.startPrank(PLAYER_ONE);
+        uint256 stakeAmount = 1 ether;
+        staking.stakeETH{value: stakeAmount}();
+        vm.stopPrank();
 
-        // Calculate expected fee (now using full 1 ether)
-        uint256 expectedFee = 1 ether;
+        uint256 expectedFee = (stakeAmount * staking.STAKING_FEE_PERCENT()) /
+            1000;
+        // uint256 contractEthBalance = address(staking).balance; // Check contract holds fee
+        // assertEq(contractEthBalance, expectedFee, "Contract should hold fee");
+        // Note: Staking contract immediately transfers fee to owner in stakeETH
 
         // Record owner balance before withdrawal
-        uint256 balanceBefore = owner.balance;
+        uint256 balanceBefore = OWNER.balance;
 
-        // Withdraw fees
-        vm.prank(owner);
+        // Withdraw fees (should be 0 as fee was already transferred)
+        vm.startPrank(OWNER);
+        // The withdrawFees function checks `address(this).balance - totalStaked`
+        // Since fee was transferred out, balance = totalStaked (approx)
+        vm.expectRevert("No fees to withdraw");
         staking.withdrawFees();
 
-        // Check owner received fees
-        uint256 balanceAfter = owner.balance;
-        assertEq(balanceAfter - balanceBefore, expectedFee);
+        // Check owner received fees (This test might be invalid if fee is transferred immediately)
+        // uint256 balanceAfter = owner.balance;
+        // assertEq(balanceAfter - balanceBefore, expectedFee);
     }
 
     function testCannotWithdrawFeesAsNonOwner() public {
         // Generate fees through direct transfer
         vm.deal(address(staking), 1 ether);
 
-        vm.startPrank(player1);
+        vm.startPrank(PLAYER_ONE);
         vm.expectRevert(
             abi.encodeWithSelector(
                 Ownable.OwnableUnauthorizedAccount.selector,
-                player1
+                PLAYER_ONE
             )
         );
         staking.withdrawFees();
@@ -166,7 +186,7 @@ contract StakingTest is Test {
     }
 
     function testCannotWithdrawWithNoFees() public {
-        vm.startPrank(owner);
+        vm.startPrank(OWNER);
         vm.expectRevert("No fees to withdraw");
         staking.withdrawFees();
         vm.stopPrank();

@@ -9,6 +9,7 @@ import "../../src/CosmicParts.sol";
 import "../../src/Staking.sol";
 import "../../src/VelocityManager.sol";
 import "../../src/Registry.sol";
+import "../../src/RiseCrystals.sol";
 
 abstract contract RiseRacersTest is Test {
     // Core protocol contracts
@@ -19,6 +20,7 @@ abstract contract RiseRacersTest is Test {
     Staking public staking;
     VelocityManager public velocityManager;
     Registry public registry;
+    RiseCrystals public riseToken;
 
     // Test addresses
     address public constant PLAYER_ONE = address(0xabc);
@@ -50,19 +52,18 @@ abstract contract RiseRacersTest is Test {
         );
 
         // Deploy contracts that don't need registry
-        cosmicParts = new CosmicParts(address(registry));
-        staking = new Staking();
+        cosmicParts = new CosmicParts(registry);
+        staking = new Staking(registry);
 
         // Deploy contracts with registry dependencies
         milestoneTracker = new MilestoneTracker(registry);
-        velocityManager = new VelocityManager(
-            address(milestoneTracker),
-            address(registry)
-        );
+        velocityManager = new VelocityManager(registry);
         universeManager = new UniverseManager(
             address(velocityManager),
             address(registry)
         );
+
+        riseToken = new RiseCrystals(address(registry));
 
         // Deploy main game contract with registry
         game = new RiseRacers(registry);
@@ -83,7 +84,7 @@ abstract contract RiseRacersTest is Test {
         );
         registry.updateContract(registry.COSMIC_PARTS(), address(cosmicParts));
         registry.updateContract(registry.STAKING(), address(staking));
-
+        registry.updateContract(registry.RISE_CRYSTALS(), address(riseToken));
         vm.stopPrank();
 
         // Give test players some ETH

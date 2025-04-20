@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import "./IMilestoneTracker.sol";
 import "./IUniverseManager.sol";
 import "./ICosmicParts.sol";
 import "./IStaking.sol";
@@ -13,6 +12,7 @@ interface IRiseRacers {
     /// @notice Player information structure
     struct PlayerInfo {
         uint256 velocity; // Current velocity
+        uint8 currentStage; // Current stage
         uint256 currentUniverse; // Current universe ID
         uint256 totalClicks; // Total number of clicks
         bool isStaking; // Whether player is staking

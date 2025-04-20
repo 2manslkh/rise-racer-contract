@@ -6,6 +6,7 @@ import "../src/MilestoneTracker.sol";
 import "../src/VelocityManager.sol";
 import "../src/Registry.sol";
 import "forge-std/console.sol";
+import {IRiseRacers} from "../src/interfaces/IRiseRacers.sol";
 
 contract MilestoneTrackerTest is RiseRacersTest {
     function setUp() public override {
@@ -15,31 +16,29 @@ contract MilestoneTrackerTest is RiseRacersTest {
     function testInitialMilestones() public {
         // Check first milestone (Sound Barrier)
         (
-            uint256 id,
+            uint8 id,
             uint256 speedRequirement,
             string memory name,
-            string memory description,
-            bool achieved
+            string memory description
         ) = milestoneTracker.milestones(0);
 
         assertEq(id, 0);
         assertEq(speedRequirement, 343);
         assertEq(name, "Sound Barrier");
         assertEq(description, "Break the sound barrier");
-        assertEq(achieved, false);
 
         // Check last milestone (Light Speed)
-        (id, speedRequirement, name, description, achieved) = milestoneTracker
-            .milestones(8);
+        (id, speedRequirement, name, description) = milestoneTracker.milestones(
+            8
+        );
         assertEq(id, 8);
         assertEq(speedRequirement, 299792458);
         assertEq(name, "Light Speed");
         assertEq(description, "Achieve the speed of light!");
-        assertEq(achieved, false);
     }
 
     function testGetCurrentMilestone() public {
-        uint256 currentMilestone = milestoneTracker.getCurrentMilestone(
+        uint8 currentMilestone = milestoneTracker.getCurrentMilestone(
             PLAYER_ONE
         );
         assertEq(currentMilestone, 0);
@@ -50,75 +49,25 @@ contract MilestoneTrackerTest is RiseRacersTest {
         addVelocity(PLAYER_ONE, 344); // Just above sound barrier
 
         // Call through RiseRacers since it's the only one that can check milestones
-        vm.startPrank(address(game));
-        velocityManager.checkSpeedMilestone(PLAYER_ONE);
+        vm.startPrank(PLAYER_ONE);
+        game.click(); // This will check milestone achievement internally
         vm.stopPrank();
 
         // Verify milestone was achieved
-        (uint256 currentMilestone, ) = milestoneTracker
+        (uint8 currentMilestone, ) = milestoneTracker
             .getCurrentMilestoneWithSpeed(PLAYER_ONE);
-        assertEq(currentMilestone, 1); // Should be at milestone 1 (second milestone)
-        assertTrue(milestoneTracker.achievedMilestones(PLAYER_ONE, 0)); // First milestone (ID 0) should be achieved
-    }
+        assertEq(currentMilestone, 0); // Should correctly identify milestone 0 (Sound Barrier)
 
-    function testClaimMilestoneNFT() public {
-        // Achieve first milestone (ID 0)
-        addVelocity(PLAYER_ONE, 344);
-        vm.startPrank(address(game));
-        velocityManager.checkSpeedMilestone(PLAYER_ONE);
-        vm.stopPrank();
-
-        // Claim milestone 0
+        // Test a higher milestone
+        addVelocity(PLAYER_ONE, 11500); // Above Escape Velocity (11200)
         vm.startPrank(PLAYER_ONE);
-        milestoneTracker.claimMilestoneNFT(0);
-        assertEq(milestoneTracker.ownerOf(0), PLAYER_ONE);
-        vm.stopPrank();
-    }
-
-    function testCannotClaimUnachievedMilestone() public {
-        vm.startPrank(PLAYER_ONE);
-        vm.expectRevert("Milestone not achieved");
-        milestoneTracker.claimMilestoneNFT(0);
-        vm.stopPrank();
-    }
-
-    function testCannotClaimSameMilestoneTwice() public {
-        // Check initial velocity
-        uint256 initialVelocity = velocityManager.getCurrentVelocity(
-            PLAYER_ONE
-        );
-        console.log("Initial velocity:", initialVelocity);
-
-        // First achieve and claim the milestone
-        addVelocity(PLAYER_ONE, 344);
-        uint256 velocityAfterAdd = velocityManager.getCurrentVelocity(
-            PLAYER_ONE
-        );
-        console.log("Velocity after adding 344 m/s:", velocityAfterAdd);
-
-        vm.startPrank(address(game));
-        velocityManager.checkSpeedMilestone(PLAYER_ONE);
+        game.click();
         vm.stopPrank();
 
-        uint256 velocityAfterCheck = velocityManager.getCurrentVelocity(
+        (currentMilestone, ) = milestoneTracker.getCurrentMilestoneWithSpeed(
             PLAYER_ONE
         );
-        console.log("Velocity after milestone check:", velocityAfterCheck);
-
-        vm.startPrank(PLAYER_ONE);
-        milestoneTracker.claimMilestoneNFT(0); // Claim milestone 0
-
-        uint256 velocityAfterFirstClaim = velocityManager.getCurrentVelocity(
-            PLAYER_ONE
-        );
-        console.log("Velocity after first NFT claim:", velocityAfterFirstClaim);
-
-        vm.expectRevert("Already claimed");
-        milestoneTracker.claimMilestoneNFT(0); // Try to claim again
-
-        uint256 finalVelocity = velocityManager.getCurrentVelocity(PLAYER_ONE);
-        console.log("Final velocity:", finalVelocity);
-        vm.stopPrank();
+        assertEq(currentMilestone, 1); // Should correctly identify milestone 1 (Escape Velocity)
     }
 
     function testProgressiveMilestones() public {
@@ -134,13 +83,41 @@ contract MilestoneTrackerTest is RiseRacersTest {
         speeds[7] = 299762479; // 99.99% Light Speed
         speeds[8] = 299792458; // Light Speed
 
+        // With the fixed _calculateMilestone, test that each speed threshold
+        // returns the correct milestone index
         for (uint256 i = 0; i < speeds.length; i++) {
-            addVelocity(PLAYER_ONE, speeds[i]);
-            vm.startPrank(address(game));
-            velocityManager.checkSpeedMilestone(PLAYER_ONE);
+            // Reset velocity
+            vm.startPrank(registry.getUniverseManager());
+            velocityManager.resetVelocity(PLAYER_ONE);
             vm.stopPrank();
-            assertEq(milestoneTracker.getCurrentMilestone(PLAYER_ONE), i + 1);
-            assertTrue(milestoneTracker.achievedMilestones(PLAYER_ONE, i));
+
+            // Set speed slightly above the threshold
+            addVelocity(PLAYER_ONE, speeds[i] + 1);
+
+            // Click to update game state
+            vm.startPrank(PLAYER_ONE);
+            game.click();
+            vm.stopPrank();
+
+            // Now the implementation is fixed, we expect the correct milestone index
+            assertEq(
+                uint256(milestoneTracker.getCurrentMilestone(PLAYER_ONE)),
+                i
+            );
+
+            // Get the player data from rise racers
+            IRiseRacers.PlayerInfo memory playerInfo = game.getPlayerInfo(
+                PLAYER_ONE
+            );
+
+            // Verify the speed is correctly set
+            uint256 currentSpeed = velocityManager.getCurrentVelocity(
+                PLAYER_ONE
+            );
+            assertTrue(
+                currentSpeed > speeds[i],
+                "Speed should be above the milestone requirement"
+            );
         }
     }
 }

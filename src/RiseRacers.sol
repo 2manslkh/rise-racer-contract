@@ -2,7 +2,6 @@
 pragma solidity ^0.8.0;
 
 import "./interfaces/IRiseRacers.sol";
-import "./interfaces/IMilestoneTracker.sol";
 import "./interfaces/IUniverseManager.sol";
 import "./interfaces/ICosmicParts.sol";
 import "./interfaces/IStaking.sol";
@@ -11,6 +10,7 @@ import "./Registry.sol";
 import "openzeppelin-contracts/access/Ownable.sol";
 import "openzeppelin-contracts/utils/ReentrancyGuard.sol";
 import "openzeppelin-contracts/utils/Pausable.sol";
+import "./interfaces/IMilestones.sol";
 
 /// @title RiseRacers - Main game contract
 /// @notice Implements the core game mechanics for Rise Racers
@@ -77,11 +77,9 @@ contract RiseRacers is IRiseRacers, Ownable, ReentrancyGuard, Pausable {
 
         // Calculate velocity gain
         uint256 clickPower = getClickPower(msg.sender);
-
         uint256 velocityGain = clickPower;
 
         // Update player state
-        player.velocity += velocityGain;
         player.totalClicks++;
 
         // Update velocity in VelocityManager
@@ -90,11 +88,15 @@ contract RiseRacers is IRiseRacers, Ownable, ReentrancyGuard, Pausable {
             velocityGain
         );
 
-        // Check for milestones
-        IVelocityManager(registry.getVelocityManager()).checkSpeedMilestone(
-            msg.sender
-        );
+        player.velocity = IVelocityManager(registry.getVelocityManager())
+            .getCurrentVelocity(msg.sender);
 
+        uint8 currentMilestone = IMilestones(registry.getMilestoneTracker())
+            .getCurrentMilestone(msg.sender);
+
+        player.currentStage = currentMilestone;
+
+        // Check for milestones
         emit Click(msg.sender, velocityGain, player.velocity);
     }
 

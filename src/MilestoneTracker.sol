@@ -2,24 +2,19 @@
 pragma solidity ^0.8.0;
 
 import "openzeppelin-contracts/access/Ownable.sol";
-import "openzeppelin-contracts/token/ERC721/extensions/ERC721URIStorage.sol";
-import "./interfaces/IMilestoneTracker.sol";
 import "./interfaces/IVelocityManager.sol";
 import "./Registry.sol";
+import "./interfaces/IMilestones.sol";
 
-contract MilestoneTracker is IMilestoneTracker, ERC721URIStorage, Ownable {
+contract MilestoneTracker is IMilestones, Ownable {
     // State variables
-    mapping(uint256 => Milestone) public milestones;
-    mapping(address => uint256) public playerCurrentMilestone;
-    mapping(address => mapping(uint256 => bool)) public achievedMilestones;
-    mapping(address => mapping(uint256 => bool)) public hasClaimed;
-    uint256 public nextMilestoneId;
-    uint256 public nextTokenId;
+    mapping(uint8 => Milestone) public milestones;
+    mapping(address => uint8) public playerCurrentMilestone;
+    mapping(address => mapping(uint8 => bool)) public hasClaimed;
+    uint8 public nextMilestoneId;
     Registry public immutable registry;
 
-    constructor(
-        Registry _registry
-    ) ERC721("RiseRacer Milestones", "RRM") Ownable(msg.sender) {
+    constructor(Registry _registry) Ownable(msg.sender) {
         registry = _registry;
         // Initialize milestones
         _addMilestone("Sound Barrier", "Break the sound barrier", 343);
@@ -39,50 +34,45 @@ contract MilestoneTracker is IMilestoneTracker, ERC721URIStorage, Ownable {
 
     function getCurrentMilestone(
         address player
-    ) external view override returns (uint256) {
-        return playerCurrentMilestone[player];
+    ) external view override returns (uint8) {
+        (uint8 currentMilestone, ) = _calculateMilestone(player);
+        return currentMilestone;
     }
 
     function getCurrentMilestoneWithSpeed(
         address player
-    ) external view returns (uint256 currentMilestone, uint256 currentSpeed) {
-        currentMilestone = playerCurrentMilestone[player];
-        currentSpeed = IVelocityManager(registry.getVelocityManager())
-            .getCurrentSpeed(player);
+    ) external view returns (uint8 currentMilestone, uint256 currentSpeed) {
+        (currentMilestone, currentSpeed) = _calculateMilestone(player);
     }
 
-    function checkMilestoneAchievement(address player) external override {
-        require(
-            msg.sender == registry.getVelocityManager(),
-            "Only VelocityManager can check achievements"
-        );
-
-        uint256 currentMilestoneId = playerCurrentMilestone[player];
-        if (currentMilestoneId >= nextMilestoneId) return;
-
-        Milestone storage targetMilestone = milestones[currentMilestoneId];
-        uint256 currentSpeed = IVelocityManager(registry.getVelocityManager())
-            .getCurrentSpeed(player);
-
-        if (currentSpeed >= targetMilestone.speedRequirement) {
-            playerCurrentMilestone[player] = currentMilestoneId + 1;
-            achievedMilestones[player][currentMilestoneId] = true; // Store achievement for current milestone
-        }
-    }
-
-    function claimMilestoneNFT(uint256 milestoneId) external override {
-        require(
-            achievedMilestones[msg.sender][milestoneId],
-            "Milestone not achieved"
-        );
-        require(!hasClaimed[msg.sender][milestoneId], "Already claimed"); // New mapping
-
-        _mint(msg.sender, milestoneId); // Mint using milestoneId as tokenId
-        _setTokenURI(milestoneId, _generateTokenURI(milestoneId));
-        hasClaimed[msg.sender][milestoneId] = true;
+    function getMilestoneDetails(
+        uint8 milestoneId
+    ) external view returns (Milestone memory milestone) {
+        return milestones[milestoneId];
     }
 
     // Internal functions
+    function _calculateMilestone(
+        address player
+    ) internal view returns (uint8 currentMilestone, uint256 currentSpeed) {
+        currentSpeed = IVelocityManager(registry.getVelocityManager())
+            .getCurrentVelocity(player);
+
+        if (currentSpeed < milestones[0].speedRequirement) {
+            return (0, currentSpeed);
+        }
+
+        // Loop backwards from highest milestone to find the highest one achieved
+        for (uint8 i = nextMilestoneId - 1; i > 0; i--) {
+            if (currentSpeed >= milestones[i].speedRequirement) {
+                return (i, currentSpeed);
+            }
+        }
+
+        // If we get here, the player has achieved at least milestone 0
+        return (0, currentSpeed);
+    }
+
     function _addMilestone(
         string memory name,
         string memory description,
@@ -92,17 +82,8 @@ contract MilestoneTracker is IMilestoneTracker, ERC721URIStorage, Ownable {
             id: nextMilestoneId,
             speedRequirement: speedRequirement,
             name: name,
-            description: description,
-            achieved: false
+            description: description
         });
         nextMilestoneId++;
-    }
-
-    function _generateTokenURI(
-        uint256 milestoneId
-    ) internal view returns (string memory) {
-        // In a real implementation, this would generate proper metadata
-        // For now, we'll return a placeholder
-        return string(abi.encodePacked("milestone/", milestoneId));
     }
 }

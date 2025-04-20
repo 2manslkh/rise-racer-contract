@@ -1,44 +1,21 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
-
-interface IMilestones is IERC1155 {
+interface IMilestones {
     struct Milestone {
-        uint256 id;
+        uint8 id;
         uint256 speedRequirement;
         string name;
         string description;
-        bool mintable;
     }
 
-    // Events
-    event MilestoneAchieved(address indexed player, uint256 milestoneId);
-    event MilestoneNFTMinted(
-        address indexed player,
-        uint256 milestoneId,
-        uint256 amount
-    );
+    function getCurrentMilestone(address player) external view returns (uint8);
 
-    // Functions
-    function getMilestoneDetails(
-        uint256 milestoneId
-    )
-        external
-        view
-        returns (
-            uint256 speedRequirement,
-            string memory name,
-            string memory description,
-            bool mintable
-        );
-
-    function checkAchievement(
+    function getCurrentMilestoneWithSpeed(
         address player
-    ) external returns (uint256 currentMilestone);
+    ) external view returns (uint8 currentMilestone, uint256 currentSpeed);
 
-    function mintAchievement(address player, uint256 milestoneId) external;
-
-    // ERC1155 Override views
-    function uri(uint256 milestoneId) external view returns (string memory);
+    function getMilestoneDetails(
+        uint8 milestoneId
+    ) external view returns (Milestone memory milestone);
 }

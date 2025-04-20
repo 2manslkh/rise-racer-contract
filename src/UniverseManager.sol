@@ -64,7 +64,7 @@ contract UniverseManager is IUniverseManager {
 
         require(currentUniverse < MAX_UNIVERSE, "Already at max universe");
         require(
-            velocityManager.getCurrentSpeed(msg.sender) >= 299792458,
+            velocityManager.getCurrentVelocity(msg.sender) >= 299792458,
             "Must reach light speed to rebirth"
         );
 

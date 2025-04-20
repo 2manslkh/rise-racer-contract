@@ -5,13 +5,11 @@ import "./interfaces/IStaking.sol";
 import "openzeppelin-contracts/access/Ownable.sol";
 import "openzeppelin-contracts/utils/ReentrancyGuard.sol";
 import "./interfaces/IRiseCrystals.sol";
+import "./Registry.sol";
 
 contract Staking is IStaking, Ownable, ReentrancyGuard {
     // Constants
-    uint256 public constant MIN_STAKE = 0.01 ether;
-    uint256 public constant MAX_STAKE = 5 ether;
     uint256 public constant STAKING_FEE_PERCENT = 5; // 0.5%
-    uint256 public constant CRYSTALS_PER_HOUR = 100000; // 100k Rise Crystals per hour
     uint256 public constant SECONDS_PER_HOUR = 3600;
     uint256 public constant LOCKUP_DURATION = 30 days;
     uint256 public constant CRYSTALS_PER_ETH = 1_000_000e18; // 1 Million Rise Crystals (assuming 18 decimals) per ETH
@@ -20,7 +18,7 @@ contract Staking is IStaking, Ownable, ReentrancyGuard {
     mapping(address => StakeInfo) public stakes;
     uint256 public totalStaked;
     uint256 public lastDistributionTime;
-    IRiseCrystals public riseCrystalsToken;
+    Registry public registry;
 
     // Events
     event Staked(address indexed staker, uint256 amount, uint256 lockEndTime);
@@ -28,46 +26,54 @@ contract Staking is IStaking, Ownable, ReentrancyGuard {
     event CrystalsClaimed(address indexed staker, uint256 amount);
     event RiseCrystalsTokenSet(address indexed tokenAddress);
 
-    constructor() Ownable(msg.sender) {
+    constructor(Registry _registry) Ownable(msg.sender) {
+        registry = _registry;
         lastDistributionTime = block.timestamp;
     }
 
-    function setRiseCrystalsTokenAddress(
-        address _tokenAddress
-    ) external onlyOwner {
-        require(_tokenAddress != address(0), "Invalid address");
-        riseCrystalsToken = IRiseCrystals(_tokenAddress);
-        emit RiseCrystalsTokenSet(_tokenAddress);
-    }
-
     function stakeETH() external payable override nonReentrant {
-        require(
-            address(riseCrystalsToken) != address(0),
-            "RiseCrystals token not set"
-        );
-        require(msg.value >= MIN_STAKE, "Below minimum stake");
-        require(msg.value <= MAX_STAKE, "Above maximum stake");
-        require(stakes[msg.sender].amount == 0, "Already staking");
+        require(msg.value > 0, "Must stake non-zero amount");
 
         uint256 fee = (msg.value * STAKING_FEE_PERCENT) / 1000;
         uint256 stakeAmount = msg.value - fee;
         uint256 lockEndTime = block.timestamp + LOCKUP_DURATION;
 
-        stakes[msg.sender] = StakeInfo({
-            amount: stakeAmount,
-            startTime: block.timestamp,
-            claimedCrystals: 0,
-            lockEndTime: lockEndTime
-        });
+        // Get reference to existing stake
+        StakeInfo storage existingStake = stakes[msg.sender];
+
+        // If user is already staking, add to their existing stake
+        if (existingStake.amount > 0) {
+            // Add new stake amount to existing stake
+            existingStake.amount += stakeAmount;
+            // Reset lock period
+            existingStake.lockEndTime = lockEndTime;
+        } else {
+            // Create new stake
+            stakes[msg.sender] = StakeInfo({
+                amount: stakeAmount,
+                startTime: block.timestamp,
+                claimedCrystals: 0,
+                lockEndTime: lockEndTime
+            });
+        }
 
         totalStaked += stakeAmount;
 
-        uint256 crystalsToMint = (msg.value * CRYSTALS_PER_ETH) / 1 ether;
-        riseCrystalsToken.mint(msg.sender, crystalsToMint);
+        uint256 crystalsToMint = calculateRiseCrystals(msg.value);
+        IRiseCrystals(registry.getRiseCrystals()).mint(
+            msg.sender,
+            crystalsToMint
+        );
 
         payable(owner()).transfer(fee);
 
         emit Staked(msg.sender, stakeAmount, lockEndTime);
+    }
+
+    function calculateRiseCrystals(
+        uint256 amount
+    ) public pure returns (uint256) {
+        return (amount * CRYSTALS_PER_ETH) / 1 ether;
     }
 
     function unstakeETH() external override nonReentrant {
@@ -81,24 +87,6 @@ contract Staking is IStaking, Ownable, ReentrancyGuard {
 
         payable(msg.sender).transfer(amount);
         emit Unstaked(msg.sender, amount);
-    }
-
-    function calculateRiseCrystals(
-        address staker
-    ) public view override returns (uint256) {
-        StakeInfo storage stake = stakes[staker];
-        if (stake.amount == 0) return 0;
-
-        uint256 hoursSinceLastClaim = (block.timestamp - stake.startTime) /
-            SECONDS_PER_HOUR;
-        if (hoursSinceLastClaim == 0) return 0;
-
-        uint256 stakerShare = (stake.amount * 1e18) / totalStaked;
-        uint256 crystals = (CRYSTALS_PER_HOUR *
-            hoursSinceLastClaim *
-            stakerShare) / 1e18;
-
-        return crystals - stake.claimedCrystals;
     }
 
     function distributePool() external override nonReentrant {

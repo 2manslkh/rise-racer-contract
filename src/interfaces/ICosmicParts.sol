@@ -12,6 +12,7 @@ interface ICosmicParts {
     struct CosmicPart {
         PartType partType;
         uint256 level;
+        uint256 boost;
     }
 
     function upgradePart(PartType partType) external;

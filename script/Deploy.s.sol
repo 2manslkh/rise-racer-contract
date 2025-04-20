@@ -23,9 +23,6 @@ contract DeployScript is Script {
         // Start broadcasting transactions
         vm.startBroadcast(deployerPrivateKey);
 
-        // Step 1: Deploy contracts that don't need registry first
-        Staking staking = new Staking();
-
         // Step 2: Deploy Registry with temporary addresses
         Registry registry = new Registry(
             address(1), // temporary RiseRacers
@@ -33,22 +30,20 @@ contract DeployScript is Script {
             address(3), // temporary UniverseManager
             address(4), // temporary VelocityManager
             address(5), // temporary CosmicParts
-            address(staking), // temporary Staking
+            address(6), // temporary Staking
             address(7) // temporary RiseCrystals
         );
 
         // Step 3: Deploy contracts that need registry
+        Staking staking = new Staking(registry);
         MilestoneTracker milestoneTracker = new MilestoneTracker(registry);
-        VelocityManager velocityManager = new VelocityManager(
-            address(milestoneTracker),
-            address(registry)
-        );
+        VelocityManager velocityManager = new VelocityManager(registry);
         UniverseManager universeManager = new UniverseManager(
             address(velocityManager),
             address(registry)
         );
 
-        CosmicParts cosmicParts = new CosmicParts(address(registry));
+        CosmicParts cosmicParts = new CosmicParts(registry);
         RiseCrystals riseCrystals = new RiseCrystals(address(registry));
         // Step 4: Deploy main game contract
         RiseRacers game = new RiseRacers(registry);
@@ -84,6 +79,7 @@ contract DeployScript is Script {
         console.log("VelocityManager:", address(velocityManager));
         console.log("CosmicParts:", address(cosmicParts));
         console.log("Staking:", address(staking));
+        console.log("RiseCrystals:", address(riseCrystals));
 
         // Verify deployment
         (
@@ -111,5 +107,6 @@ contract DeployScript is Script {
         );
         require(cp == address(cosmicParts), "CosmicParts address mismatch");
         require(st == address(staking), "Staking address mismatch");
+        require(rc == address(riseCrystals), "RiseCrystals address mismatch");
     }
 }

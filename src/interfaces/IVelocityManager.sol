@@ -6,9 +6,5 @@ interface IVelocityManager {
 
     function getCurrentVelocity(address player) external view returns (uint256);
 
-    function getCurrentSpeed(address player) external view returns (uint256);
-
-    function checkSpeedMilestone(address player) external;
-
     function resetVelocity(address player) external;
 }

@@ -13,9 +13,5 @@ interface IStaking {
 
     function unstakeETH() external;
 
-    function calculateRiseCrystals(
-        address staker
-    ) external view returns (uint256);
-
     function distributePool() external;
 }

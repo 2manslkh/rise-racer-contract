@@ -1,49 +1,23 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import "./interfaces/IRegistry.sol";
+import "./Registry.sol";
 import "./interfaces/IRiseCrystals.sol";
+import "./interfaces/ICosmicParts.sol";
 import "./Curves.sol";
 import "openzeppelin-contracts/token/ERC721/extensions/ERC721URIStorage.sol";
 import "openzeppelin-contracts/access/Ownable.sol";
 import "openzeppelin-contracts/token/ERC20/utils/SafeERC20.sol";
 
-contract CosmicParts is ERC721URIStorage, Ownable, Curves {
+contract CosmicParts is ERC721URIStorage, ICosmicParts, Ownable, Curves {
     using SafeERC20 for IRiseCrystals;
 
-    // --- Structs ---
-    struct CosmicPart {
-        PartType partType;
-        uint256 level;
-    }
-    // Enums
-    enum PartType {
-        Engine,
-        Turbo,
-        Chassis,
-        Wheels
-    }
-
     // State variables
-    IRegistry public registry;
+    Registry public registry;
     mapping(uint256 => CosmicPart) internal parts;
     mapping(address => mapping(PartType => uint256)) public equippedParts;
-    mapping(PartType => uint256) public mintedSupply;
     uint256 private nextTokenId = 1;
     string private __baseURI;
-
-    // Constants
-    // uint256 public constant MAX_SUPPLY_PER_TYPE = 10000; // Removed
-
-    // Base boosts for each part type
-    uint256 private constant ENGINE_BASE_BOOST = 10;
-    uint256 private constant ENGINE_PERCENT_BOOST = 1;
-    uint256 private constant TURBO_BASE_BOOST = 5;
-    uint256 private constant TURBO_PERCENT_BOOST = 5;
-    uint256 private constant CHASSIS_BASE_BOOST = 3;
-    uint256 private constant CHASSIS_PERCENT_BOOST = 3;
-    uint256 private constant WHEELS_BASE_BOOST = 2;
-    uint256 private constant WHEELS_PERCENT_BOOST = 2;
 
     // Events
     event PartMinted(
@@ -61,10 +35,10 @@ contract CosmicParts is ERC721URIStorage, Ownable, Curves {
     );
 
     constructor(
-        address _registryAddress
+        Registry _registry
     ) ERC721("Cosmic Parts", "CPART") Ownable(msg.sender) {
-        require(_registryAddress != address(0), "Invalid registry address");
-        registry = IRegistry(_registryAddress);
+        require(address(_registry) != address(0), "Invalid registry address");
+        registry = _registry;
     }
 
     /**
@@ -90,7 +64,7 @@ contract CosmicParts is ERC721URIStorage, Ownable, Curves {
             else if (partType == PartType.Wheels) cost = getWheelCost(1);
 
             require(cost > 0, "Level 1 cost cannot be zero");
-            crystalCost = cost * 1e10; // Scale to 1e18
+            crystalCost = cost;
 
             // Payment
             _takePayment(crystalCost);
@@ -104,7 +78,6 @@ contract CosmicParts is ERC721URIStorage, Ownable, Curves {
         } else {
             // Upgrade existing part
             CosmicPart storage part = parts[currentTokenId];
-            // Basic check that stored partType matches requested partType (should always match)
             require(part.partType == partType, "Token data mismatch");
 
             uint256 currentLevel = part.level;
@@ -119,13 +92,13 @@ contract CosmicParts is ERC721URIStorage, Ownable, Curves {
                 cost = getWheelCost(nextLevel);
 
             require(cost > 0, "Upgrade cost cannot be zero");
-            crystalCost = cost * 1e10; // Scale to 1e18
+            crystalCost = cost;
 
             // Payment
             _takePayment(crystalCost);
 
             // Apply Upgrade
-            part.level = nextLevel;
+            _updatePartNFT(currentTokenId, nextLevel);
 
             // Emit Upgrade Event
             emit PartUpgraded(
@@ -156,15 +129,44 @@ contract CosmicParts is ERC721URIStorage, Ownable, Curves {
         address to,
         PartType partType
     ) internal returns (uint256 tokenId) {
-        mintedSupply[partType]++; // Still track total minted per type for curve input
-
         tokenId = nextTokenId;
-        parts[tokenId] = CosmicPart({partType: partType, level: 1}); // Mint at level 1
+        uint256 boost;
+        if (partType == PartType.Engine) {
+            boost = getEngineVelocity(1); // Example base boost
+        } else if (partType == PartType.Turbo) {
+            boost = getTurboVelocity(1);
+        } else if (partType == PartType.Chassis) {
+            boost = getChassisVelocity(1);
+        } else if (partType == PartType.Wheels) {
+            boost = getWheelVelocity(1);
+        }
+        parts[tokenId] = CosmicPart({
+            partType: partType,
+            level: 1,
+            boost: boost
+        }); // Mint at level 1
 
         _mint(to, tokenId); // Actual ERC721 mint
         _setTokenURI(tokenId, _generateTokenURI(partType));
 
         nextTokenId++;
+    }
+
+    function _updatePartNFT(uint256 tokenId, uint256 nextLevel) internal {
+        CosmicPart storage part = parts[tokenId];
+        part.level = nextLevel;
+
+        uint256 boost;
+        if (part.partType == PartType.Engine) {
+            boost = getEngineVelocity(part.level);
+        } else if (part.partType == PartType.Turbo) {
+            boost = getTurboVelocity(part.level);
+        } else if (part.partType == PartType.Chassis) {
+            boost = getChassisVelocity(part.level);
+        } else if (part.partType == PartType.Wheels) {
+            boost = getWheelVelocity(part.level);
+        }
+        part.boost = boost;
     }
 
     // --- Internal Equipping Helper (Renamed) ---
@@ -192,9 +194,6 @@ contract CosmicParts is ERC721URIStorage, Ownable, Curves {
             uint256 equippedTokenId = equippedParts[player][loopPartType];
             if (equippedTokenId != 0) {
                 if (parts[equippedTokenId].partType == loopPartType) {
-                    // --- How to get boost from level? Needs separate logic ---
-                    // Option 1: Use Curves.sol velocity functions?
-                    // Option 2: Define boost logic here based on part.level
                     // Example using Curves velocity (assuming linear boost based on level):
                     uint256 partLevel = parts[equippedTokenId].level;
                     if (loopPartType == PartType.Engine) {

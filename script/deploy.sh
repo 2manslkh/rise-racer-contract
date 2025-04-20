@@ -41,6 +41,7 @@ forge script script/Deploy.s.sol:DeployScript \
     --verify \
     --verifier blockscout \
     --verifier-url $EXPLORER_API_URL \
+    --skip-simulation \
     -vvvv
 
 DEPLOY_STATUS=$?
