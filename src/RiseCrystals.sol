@@ -5,29 +5,33 @@ import "openzeppelin-contracts/token/ERC20/ERC20.sol";
 // Remove Ownable and AccessControl if not used elsewhere
 // import "openzeppelin-contracts/access/AccessControl.sol";
 // import "openzeppelin-contracts/access/Ownable.sol";
-import "./interfaces/IRegistry.sol"; // Import the Registry interface
+import "./Registry.sol"; // Import the Registry interface
 
 contract RiseCrystals is ERC20 {
-    IRegistry public registry;
+    Registry public registry;
 
-    modifier onlyStakingContract() {
+    modifier onlyAllowedContract() {
         // Ensure registry is not address(0) before calling it
         require(address(registry) != address(0), "Registry not set");
-        address stakingAddress = registry.getAddress(registry.STAKING());
+
+        address stakingAddress = registry.getStaking();
+        address riseRacersAddress = registry.getRiseRacers();
+
         require(
-            stakingAddress != address(0),
-            "Staking address not set in Registry"
+            stakingAddress != address(0) && riseRacersAddress != address(0),
+            "Required addresses not set in Registry"
         );
+
         require(
-            msg.sender == stakingAddress,
-            "Caller is not the Staking contract"
+            msg.sender == stakingAddress || msg.sender == riseRacersAddress,
+            "Caller is not an allowed contract"
         );
         _;
     }
 
     constructor(address _registryAddress) ERC20("Rise Crystals", "RISE") {
         require(_registryAddress != address(0), "Invalid registry address");
-        registry = IRegistry(_registryAddress);
+        registry = Registry(_registryAddress);
     }
 
     /**
@@ -41,7 +45,7 @@ contract RiseCrystals is ERC20 {
      * - `account` cannot be the zero address.
      * - The caller must be the registered Staking contract.
      */
-    function mint(address account, uint256 amount) public onlyStakingContract {
+    function mint(address account, uint256 amount) public onlyAllowedContract {
         _mint(account, amount);
     }
 

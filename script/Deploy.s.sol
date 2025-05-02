@@ -23,6 +23,9 @@ contract DeployScript is Script {
         // Start broadcasting transactions
         vm.startBroadcast(deployerPrivateKey);
 
+        // print deployer address
+        console.log("Deployer address:", vm.addr(deployerPrivateKey));
+
         // Step 2: Deploy Registry with temporary addresses
         Registry registry = new Registry(
             address(1), // temporary RiseRacers
@@ -38,10 +41,7 @@ contract DeployScript is Script {
         Staking staking = new Staking(registry);
         MilestoneTracker milestoneTracker = new MilestoneTracker(registry);
         VelocityManager velocityManager = new VelocityManager(registry);
-        UniverseManager universeManager = new UniverseManager(
-            address(velocityManager),
-            address(registry)
-        );
+        UniverseManager universeManager = new UniverseManager(registry);
 
         CosmicParts cosmicParts = new CosmicParts(registry);
         RiseCrystals riseCrystals = new RiseCrystals(address(registry));

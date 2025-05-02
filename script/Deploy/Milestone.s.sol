@@ -16,7 +16,7 @@ contract DeployScript is Script {
         // Get deployment private key from environment
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         Registry registry = Registry(
-            0xD7979FF6dFa4674F3D1749e32d2bbb86Df9b761c
+            0x4c345Df0C083f502BDA09768D8f0B882f16f4711
         );
         // If deploying locally, use a default private key
         if (block.chainid == 31337) {
@@ -27,8 +27,11 @@ contract DeployScript is Script {
         vm.startBroadcast(deployerPrivateKey);
 
         // Step 1: Deploy contracts that don't need registry first
-        CosmicParts cosmicParts = new CosmicParts(registry);
+        MilestoneTracker milestoneTracker = new MilestoneTracker(registry);
 
-        registry.updateContract(registry.COSMIC_PARTS(), address(cosmicParts));
+        registry.updateContract(
+            registry.MILESTONE_TRACKER(),
+            address(milestoneTracker)
+        );
     }
 }

@@ -18,4 +18,9 @@ interface ICosmicParts {
     function upgradePart(PartType partType) external;
 
     function getTotalBoost(address player) external view returns (uint256);
+
+    function getPartLevelByUser(
+        address player,
+        PartType partType
+    ) external view returns (uint256);
 }

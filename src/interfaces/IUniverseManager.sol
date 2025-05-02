@@ -13,6 +13,10 @@ interface IUniverseManager {
     function rebirth() external;
 
     function getUniverseMultiplier(
+        uint256 universeLevel
+    ) external view returns (uint256);
+
+    function getPlayerUniverseMultiplier(
         address player
     ) external view returns (uint256);
 }

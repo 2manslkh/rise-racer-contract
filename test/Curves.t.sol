@@ -11,37 +11,54 @@ contract CurvesTest is Test {
         curves = new Curves();
     }
 
-    function testCurvesValues() public {
-        console.log("--- Testing Levels 1 to 10 ---");
-        for (uint256 level = 1; level <= 10; level++) {
-            console.log("Level:", level);
-            console.log("  Wheel Cost:", curves.getWheelCost(level));
-            console.log("  Engine Cost:", curves.getEngineCost(level));
-            console.log("  Chassis Cost:", curves.getChassisCost(level));
-            console.log("  Turbo Cost:", curves.getTurboCost(level));
-            console.log("  Wheel Velocity:", curves.getWheelVelocity(level));
-            console.log("  Engine Velocity:", curves.getEngineVelocity(level));
-            console.log(
-                "  Chassis Velocity:",
-                curves.getChassisVelocity(level)
-            );
-            console.log("  Turbo Velocity:", curves.getTurboVelocity(level));
-        }
+    function test_PrintCurveValues() public {
+        uint256 maxLevelToTest = 20; // Adjust as needed
 
-        console.log("\n--- Testing Levels 10 to 100 (in steps of 10) ---");
-        for (uint256 level = 10; level <= 100; level += 10) {
-            console.log("Level:", level);
-            console.log("  Wheel Cost:", curves.getWheelCost(level));
-            console.log("  Engine Cost:", curves.getEngineCost(level));
-            console.log("  Chassis Cost:", curves.getChassisCost(level));
-            console.log("  Turbo Cost:", curves.getTurboCost(level));
-            console.log("  Wheel Velocity:", curves.getWheelVelocity(level));
-            console.log("  Engine Velocity:", curves.getEngineVelocity(level));
+        console.log("--- Upgrade Curve Values ---");
+
+        for (uint256 level = 1; level <= maxLevelToTest; level++) {
+            console.log("\n--- Level:", level, "---");
+
+            // Wheel
+            uint256 wheelCost = curves.getWheelCost(level);
+            uint256 wheelVel = curves.getWheelVelocity(level);
             console.log(
-                "  Chassis Velocity:",
-                curves.getChassisVelocity(level)
+                "  Wheel   | Cost:",
+                wheelCost,
+                " | Velocity:",
+                wheelVel
             );
-            console.log("  Turbo Velocity:", curves.getTurboVelocity(level));
+
+            // Engine
+            uint256 engineCost = curves.getEngineCost(level);
+            uint256 engineVel = curves.getEngineVelocity(level);
+            console.log(
+                "  Engine  | Cost:",
+                engineCost,
+                " | Velocity:",
+                engineVel
+            );
+
+            // Chassis
+            uint256 chassisCost = curves.getChassisCost(level);
+            uint256 chassisVel = curves.getChassisVelocity(level);
+            console.log(
+                "  Chassis | Cost:",
+                chassisCost,
+                " | Velocity:",
+                chassisVel
+            );
+
+            // Turbo
+            uint256 turboCost = curves.getTurboCost(level);
+            uint256 turboVel = curves.getTurboVelocity(level);
+            console.log(
+                "  Turbo   | Cost:",
+                turboCost,
+                " | Velocity:",
+                turboVel
+            );
         }
+        console.log("\n---------------------------");
     }
 }

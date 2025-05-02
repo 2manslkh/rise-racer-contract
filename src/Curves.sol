@@ -5,112 +5,132 @@ import {UD60x18, ud, powu, mul, uUNIT} from "@prb/math/UD60x18.sol";
 import {convert} from "@prb/math/ud60x18/Conversions.sol";
 
 contract Curves {
-    // Constant for 8 decimal places
-    uint256 public constant DECIMAL_SCALE = 1e18; // 1e8
+    // Use 1e18 for scaling calculations with PRBMath
+    uint256 public constant DECIMAL_SCALE = 1 ether;
 
-    // Hardcoded constants for Wheel
-    uint256 public constant WHEEL_BASE_COST = 20; // Coins
-    uint256 public constant WHEEL_GROWTH_FACTOR = 1150000000000000000; // 1.15e18
-    uint256 public constant WHEEL_BASE_VELOCITY = 2; // Speed points
+    // --- Wheel Constants ---
+    uint256 public constant WHEEL_BASE_COST = 20 ether; // Base cost scaled
+    uint256 public constant WHEEL_COST_GROWTH_FACTOR = 1180000000000000000; // 1.18x per level
+    uint256 public constant WHEEL_BASE_VELOCITY = 2 ether; // Base velocity scaled
+    uint256 public constant WHEEL_VELOCITY_GROWTH_FACTOR = 1180000000000000000; // 1.10x velocity per level (Increased from 1.08)
 
-    // Hardcoded constants for Engine
-    uint256 public constant ENGINE_BASE_COST = 100;
-    uint256 public constant ENGINE_GROWTH_FACTOR = 1200000000000000000; // 1.20e18
-    uint256 public constant ENGINE_BASE_VELOCITY = 5;
+    // --- Engine Constants ---
+    uint256 public constant ENGINE_BASE_COST = 100 ether; // Base cost scaled
+    uint256 public constant ENGINE_COST_GROWTH_FACTOR = 1250000000000000000; // 1.25x per level
+    uint256 public constant ENGINE_BASE_VELOCITY = 5 ether; // Base velocity scaled
+    uint256 public constant ENGINE_VELOCITY_GROWTH_FACTOR = 1350000000000000000; // 1.15x velocity per level (Increased from 1.12)
 
-    // Hardcoded constants for Chassis
-    uint256 public constant CHASSIS_BASE_COST = 10;
-    uint256 public constant CHASSIS_GROWTH_FACTOR = 1100000000000000000; // 1.10e18
-    uint256 public constant CHASSIS_BASE_VELOCITY = 1;
+    // --- Chassis Constants ---
+    uint256 public constant CHASSIS_BASE_COST = 10 ether; // Base cost scaled
+    uint256 public constant CHASSIS_COST_GROWTH_FACTOR = 1120000000000000000; // 1.12x per level
+    uint256 public constant CHASSIS_BASE_VELOCITY = 1 ether; // Base velocity scaled
+    uint256 public constant CHASSIS_VELOCITY_GROWTH_FACTOR =
+        1080000000000000000; // 1.08x velocity per level (Increased from 1.05)
 
-    // Hardcoded constants for Turbo
-    uint256 public constant TURBO_BASE_COST = 500;
-    uint256 public constant TURBO_GROWTH_FACTOR = 1250000000000000000; // 1.25e18
-    uint256 public constant TURBO_BASE_VELOCITY = 3;
+    // --- Turbo Constants ---
+    uint256 public constant TURBO_BASE_COST = 500 ether; // Base cost scaled
+    uint256 public constant TURBO_COST_GROWTH_FACTOR = 1350000000000000000; // 1.35x per level
+    uint256 public constant TURBO_BASE_VELOCITY = 3 ether; // Base velocity scaled
+    uint256 public constant TURBO_VELOCITY_GROWTH_FACTOR = 1100000000000000000; // 1.22x velocity per level (Increased from 1.18)
 
-    // Calculate Wheel upgrade cost (exponential: baseCost * growthFactor^(level-1))
+    // === Cost Calculation Functions ===
+
     function getWheelCost(uint256 level) public pure returns (uint256) {
-        require(level >= 1, "Level must be at least 1");
-
+        require(level >= 1, "Level must be >= 1");
         if (level == 1) {
-            return WHEEL_BASE_COST * DECIMAL_SCALE; // Base cost with 8 decimals
+            return WHEEL_BASE_COST; // Return scaled base cost as integer
         }
-
-        // Convert to UD60x18 for fixed-point arithmetic
-        UD60x18 baseCost = convert(WHEEL_BASE_COST * DECIMAL_SCALE);
-        UD60x18 growthFactor = ud(WHEEL_GROWTH_FACTOR - 1e17);
-
-        // Calculate cost = baseCost * growthFactor^(level-1)
-        UD60x18 cost = mul(baseCost, powu(growthFactor, level - 1));
-        return cost.unwrap() / uUNIT;
+        UD60x18 base = ud(WHEEL_BASE_COST);
+        UD60x18 factor = ud(WHEEL_COST_GROWTH_FACTOR);
+        UD60x18 cost = mul(base, powu(factor, level - 1));
+        return cost.unwrap(); // Return integer value
     }
 
-    // Calculate Engine upgrade cost
     function getEngineCost(uint256 level) public pure returns (uint256) {
-        require(level >= 1, "Level must be at least 1");
-
+        require(level >= 1, "Level must be >= 1");
         if (level == 1) {
-            return ENGINE_BASE_COST * DECIMAL_SCALE;
+            return ENGINE_BASE_COST;
         }
-
-        UD60x18 baseCost = convert(ENGINE_BASE_COST * DECIMAL_SCALE);
-        UD60x18 growthFactor = ud(ENGINE_GROWTH_FACTOR - 1e17);
-
-        UD60x18 cost = mul(baseCost, powu(growthFactor, level - 1));
-        return cost.unwrap() / uUNIT;
+        UD60x18 base = ud(ENGINE_BASE_COST);
+        UD60x18 factor = ud(ENGINE_COST_GROWTH_FACTOR);
+        UD60x18 cost = mul(base, powu(factor, level - 1));
+        return cost.unwrap();
     }
 
-    // Calculate Chassis upgrade cost
     function getChassisCost(uint256 level) public pure returns (uint256) {
-        require(level >= 1, "Level must be at least 1");
-
+        require(level >= 1, "Level must be >= 1");
         if (level == 1) {
-            return CHASSIS_BASE_COST * DECIMAL_SCALE;
+            return CHASSIS_BASE_COST;
         }
-
-        UD60x18 baseCost = convert(CHASSIS_BASE_COST * DECIMAL_SCALE);
-        UD60x18 growthFactor = ud(CHASSIS_GROWTH_FACTOR - 1e17);
-
-        UD60x18 cost = mul(baseCost, powu(growthFactor, level - 1));
-        return cost.unwrap() / uUNIT;
+        UD60x18 base = ud(CHASSIS_BASE_COST);
+        UD60x18 factor = ud(CHASSIS_COST_GROWTH_FACTOR);
+        UD60x18 cost = mul(base, powu(factor, level - 1));
+        return cost.unwrap();
     }
 
-    // Calculate Turbo upgrade cost
     function getTurboCost(uint256 level) public pure returns (uint256) {
-        require(level >= 1, "Level must be at least 1");
-
+        require(level >= 1, "Level must be >= 1");
         if (level == 1) {
-            return TURBO_BASE_COST * DECIMAL_SCALE;
+            return TURBO_BASE_COST;
         }
-
-        UD60x18 baseCost = convert(TURBO_BASE_COST * DECIMAL_SCALE);
-        UD60x18 growthFactor = ud(TURBO_GROWTH_FACTOR - 1e17);
-
-        UD60x18 cost = mul(baseCost, powu(growthFactor, level - 1));
-        return cost.unwrap() / uUNIT;
+        UD60x18 base = ud(TURBO_BASE_COST);
+        UD60x18 factor = ud(TURBO_COST_GROWTH_FACTOR);
+        UD60x18 cost = mul(base, powu(factor, level - 1));
+        return cost.unwrap();
     }
 
-    // Calculate Wheel velocity (linear: baseVelocity * level)
+    // === Velocity Calculation Functions (Now Exponential * Level) ===
+
     function getWheelVelocity(uint256 level) public pure returns (uint256) {
-        require(level >= 1, "Level must be at least 1");
-        return WHEEL_BASE_VELOCITY * level;
+        require(level >= 1, "Level must be >= 1");
+        UD60x18 base = ud(WHEEL_BASE_VELOCITY);
+        if (level == 1) {
+            // For level 1, factor^0 = 1, level = 1. Result is just base.
+            return base.unwrap() / uUNIT;
+        }
+        UD60x18 factor = ud(WHEEL_VELOCITY_GROWTH_FACTOR);
+        UD60x18 expVelocity = mul(base, powu(factor, level - 1));
+        // Multiply by level
+        UD60x18 finalVelocity = mul(expVelocity, convert(level));
+        return finalVelocity.unwrap() / uUNIT; // Return integer value
     }
 
-    // Calculate Engine velocity
     function getEngineVelocity(uint256 level) public pure returns (uint256) {
-        require(level >= 1, "Level must be at least 1");
-        return ENGINE_BASE_VELOCITY * level;
+        require(level >= 1, "Level must be >= 1");
+        UD60x18 base = ud(ENGINE_BASE_VELOCITY);
+        if (level == 1) {
+            return base.unwrap() / uUNIT;
+        }
+        UD60x18 factor = ud(ENGINE_VELOCITY_GROWTH_FACTOR);
+        UD60x18 expVelocity = mul(base, powu(factor, level - 1));
+        // Multiply by level
+        UD60x18 finalVelocity = mul(expVelocity, convert(level));
+        return finalVelocity.unwrap() / uUNIT;
     }
 
-    // Calculate Chassis velocity
     function getChassisVelocity(uint256 level) public pure returns (uint256) {
-        require(level >= 1, "Level must be at least 1");
-        return CHASSIS_BASE_VELOCITY * level;
+        require(level >= 1, "Level must be >= 1");
+        UD60x18 base = ud(CHASSIS_BASE_VELOCITY);
+        if (level == 1) {
+            return base.unwrap() / uUNIT;
+        }
+        UD60x18 factor = ud(CHASSIS_VELOCITY_GROWTH_FACTOR);
+        UD60x18 expVelocity = mul(base, powu(factor, level - 1));
+        // Multiply by level
+        UD60x18 finalVelocity = mul(expVelocity, convert(level));
+        return finalVelocity.unwrap() / uUNIT;
     }
 
-    // Calculate Turbo velocity
     function getTurboVelocity(uint256 level) public pure returns (uint256) {
-        require(level >= 1, "Level must be at least 1");
-        return TURBO_BASE_VELOCITY * level;
+        require(level >= 1, "Level must be >= 1");
+        UD60x18 base = ud(TURBO_BASE_VELOCITY);
+        if (level == 1) {
+            return base.unwrap() / uUNIT;
+        }
+        UD60x18 factor = ud(TURBO_VELOCITY_GROWTH_FACTOR);
+        UD60x18 expVelocity = mul(base, powu(factor, level - 1));
+        // Multiply by level
+        UD60x18 finalVelocity = mul(expVelocity, convert(level));
+        return finalVelocity.unwrap() / uUNIT;
     }
 }

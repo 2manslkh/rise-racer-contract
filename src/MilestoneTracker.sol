@@ -9,27 +9,79 @@ import "./interfaces/IMilestones.sol";
 contract MilestoneTracker is IMilestones, Ownable {
     // State variables
     mapping(uint8 => Milestone) public milestones;
-    mapping(address => uint8) public playerCurrentMilestone;
-    mapping(address => mapping(uint8 => bool)) public hasClaimed;
-    uint8 public nextMilestoneId;
+    uint8 public nextMilestoneId = 1;
     Registry public immutable registry;
 
     constructor(Registry _registry) Ownable(msg.sender) {
         registry = _registry;
-        // Initialize milestones
-        _addMilestone("Sound Barrier", "Break the sound barrier", 343);
+
+        _addMilestone(
+            "Ignition",
+            "Kick off your journey with a modest burst of speed.",
+            50
+        );
+        _addMilestone(
+            "Sound Barrier",
+            "Smash through the barrier that once defined high-speed travel.",
+            343
+        );
+        _addMilestone(
+            "Suborbital Flight",
+            "Experience your first taste of spacebound velocity.",
+            1000
+        );
+        _addMilestone(
+            "Orbital Velocity",
+            "Reach the speed necessary to achieve low Earth orbit.",
+            7800
+        );
         _addMilestone(
             "Escape Velocity",
-            "Break free from Earth's gravity",
+            "Break free from Earths gravitational pull.",
             11200
         );
-        _addMilestone("1% Light Speed", "Reach 1% of light speed", 2997925);
-        _addMilestone("10% Light Speed", "Reach 10% of light speed", 29979246);
-        _addMilestone("50% Light Speed", "Reach 50% of light speed", 149896229);
-        _addMilestone("90% Light Speed", "Reach 90% of light speed", 269813212);
-        _addMilestone("99% Light Speed", "Reach 99% of light speed", 296794533);
-        _addMilestone("99.99% Light Speed", "Almost there!", 299762479);
-        _addMilestone("Light Speed", "Achieve the speed of light!", 299792458);
+        _addMilestone(
+            "Initial Cosmic Leap",
+            "Take a significant step into the cosmic arena.",
+            299792
+        );
+        _addMilestone(
+            "Rapid Acceleration",
+            "Accelerate dramatically as you leave the familiar behind.",
+            2997925
+        );
+        _addMilestone(
+            "Hyper Drive",
+            "Engage your hyper drive and begin interstellar travel.",
+            29979246
+        );
+
+        _addMilestone(
+            "Cosmic Sprint",
+            "Pick up the pace with a burst that pushes you further than ever before.",
+            74948115
+        );
+        _addMilestone(
+            "Superluminal Approach",
+            "Reach the midpoint of your journey to the cosmic barrier.",
+            149896229
+        ); // ~50% c
+        // Background 6
+        _addMilestone(
+            "Near Light-Speed",
+            "Nudge closer to the ultimate limit as you edge near light speed.",
+            269813212
+        ); // ~90% c
+        _addMilestone(
+            "Final Thrust",
+            "Give your final burst to prepare for the ultimate transformation.",
+            296794533
+        ); // ~99% c
+        _addMilestone(
+            "Light Speed Achievement",
+            "Achieve the legendary milestone-breaking the ultimate speed barrier.",
+            299792458
+        );
     }
 
     function getCurrentMilestone(

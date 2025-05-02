@@ -58,10 +58,7 @@ abstract contract RiseRacersTest is Test {
         // Deploy contracts with registry dependencies
         milestoneTracker = new MilestoneTracker(registry);
         velocityManager = new VelocityManager(registry);
-        universeManager = new UniverseManager(
-            address(velocityManager),
-            address(registry)
-        );
+        universeManager = new UniverseManager(registry);
 
         riseToken = new RiseCrystals(address(registry));
 

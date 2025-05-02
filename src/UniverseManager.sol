@@ -1,56 +1,33 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.20;
 
 import "./interfaces/IUniverseManager.sol";
 import "./interfaces/IVelocityManager.sol";
 import "./Registry.sol";
+import {UD60x18, ud, powu, mul, uUNIT} from "@prb/math/UD60x18.sol";
+import {convert} from "@prb/math/ud60x18/Conversions.sol";
 
 contract UniverseManager is IUniverseManager {
+    // Define Universe struct without multiplier
+    struct UniverseInfo {
+        uint256 id;
+        string badgeName;
+    }
+
     // State variables
-    mapping(uint256 => Universe) public universes;
     mapping(address => uint256) public playerUniverses;
-    uint256 public constant MAX_UNIVERSE = 5;
-    IVelocityManager public immutable velocityManager;
+
+    // Exponential Curve Constants
+    uint256 public constant BASE_MULTIPLIER = 1 ether;
+    uint256 public constant MULTIPLIER_GROWTH_FACTOR = 1500000000000000000;
+
     Registry public immutable registry;
 
     // Events
     event UniverseProgression(address indexed player, uint256 newUniverse);
 
-    constructor(address _velocityManager, address _registry) {
-        velocityManager = IVelocityManager(_velocityManager);
+    constructor(Registry _registry) {
         registry = Registry(_registry);
-
-        // Initialize universes starting from 0
-        universes[0] = Universe({
-            id: 0,
-            multiplier: 1,
-            badgeName: "Novice Racer"
-        });
-        universes[1] = Universe({
-            id: 1,
-            multiplier: 15, // 1.5x represented as 15 for integer math
-            badgeName: "Speedster Badge"
-        });
-        universes[2] = Universe({
-            id: 2,
-            multiplier: 225, // 2.25x
-            badgeName: "Speed Demon Badge"
-        });
-        universes[3] = Universe({
-            id: 3,
-            multiplier: 338, // 3.38x
-            badgeName: "Speed Deity Badge"
-        });
-        universes[4] = Universe({
-            id: 4,
-            multiplier: 506, // 5.06x
-            badgeName: "God of Speed, Hermes Badge"
-        });
-        universes[5] = Universe({
-            id: 5,
-            multiplier: 759, // 7.59x
-            badgeName: "The fastest man alive badge"
-        });
     }
 
     function getCurrentUniverse(
@@ -62,24 +39,43 @@ contract UniverseManager is IUniverseManager {
     function rebirth() external override {
         uint256 currentUniverse = playerUniverses[msg.sender];
 
-        require(currentUniverse < MAX_UNIVERSE, "Already at max universe");
         require(
-            velocityManager.getCurrentVelocity(msg.sender) >= 299792458,
+            IVelocityManager(registry.getVelocityManager()).getCurrentVelocity(
+                msg.sender
+            ) >= 299792458,
             "Must reach light speed to rebirth"
         );
 
         uint256 newUniverse = currentUniverse + 1;
         playerUniverses[msg.sender] = newUniverse;
 
-        // Reset player's velocity
-        velocityManager.resetVelocity(msg.sender);
+        // Reset player's velocity using the registry to get the VelocityManager address
+        IVelocityManager(registry.getVelocityManager()).resetVelocity(
+            msg.sender
+        );
 
         emit UniverseProgression(msg.sender, newUniverse);
     }
 
-    function getUniverseMultiplier(
+    function getPlayerUniverseMultiplier(
         address player
-    ) external view override returns (uint256) {
-        return universes[playerUniverses[player]].multiplier;
+    ) external view returns (uint256) {
+        return getUniverseMultiplier(playerUniverses[player]);
+    }
+
+    // Calculate multiplier exponentially
+    function getUniverseMultiplier(
+        uint256 universeLevel
+    ) public view returns (uint256) {
+        if (universeLevel == 0) {
+            return BASE_MULTIPLIER / 1 ether;
+        }
+
+        UD60x18 base = ud(BASE_MULTIPLIER);
+        UD60x18 growthFactor = ud(MULTIPLIER_GROWTH_FACTOR);
+
+        UD60x18 multiplier = mul(base, powu(growthFactor, universeLevel));
+
+        return multiplier.unwrap() / uUNIT;
     }
 }

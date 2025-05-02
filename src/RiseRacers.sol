@@ -11,6 +11,7 @@ import "openzeppelin-contracts/access/Ownable.sol";
 import "openzeppelin-contracts/utils/ReentrancyGuard.sol";
 import "openzeppelin-contracts/utils/Pausable.sol";
 import "./interfaces/IMilestones.sol";
+import "./interfaces/IRiseCrystals.sol";
 
 /// @title RiseRacers - Main game contract
 /// @notice Implements the core game mechanics for Rise Racers
@@ -26,50 +27,11 @@ contract RiseRacers is IRiseRacers, Ownable, ReentrancyGuard, Pausable {
     // Events
     event AddressBound(address indexed binder, address indexed boundAddress);
     event AddressUnbound(address indexed binder, address indexed boundAddress);
+    event PlayerUpdated(address indexed player, PlayerInfo playerInfo);
 
     constructor(Registry _registry) Ownable(msg.sender) {
         registry = _registry;
     }
-
-    // --- Binding Logic ---
-
-    /// @notice Binds the caller's address (binder) to a specified address (boundAddress).
-    /// @dev Enforces a strict 1-to-1 mapping. Both binder and boundAddress must be unbound prior.
-    /// @param _boundAddress The address to bind to. Cannot be address(0) or the caller's address.
-    function bindAddress(address _boundAddress) external nonReentrant {
-        require(
-            _boundAddress != address(0),
-            "RiseRacers: Bound address cannot be zero"
-        );
-        require(_boundAddress != msg.sender, "RiseRacers: Cannot bind to self");
-        require(
-            boundToBinder[_boundAddress] == address(0),
-            "RiseRacers: Target address already bound by another"
-        );
-
-        binderToBound[msg.sender] = _boundAddress;
-        boundToBinder[_boundAddress] = msg.sender;
-
-        emit AddressBound(msg.sender, _boundAddress);
-    }
-
-    /// @notice Gets the address bound by a specific binder address.
-    /// @param _binder The address of the binder.
-    /// @return The address bound by the binder, or address(0) if none.
-    function getBoundAddress(address _binder) external view returns (address) {
-        return binderToBound[_binder];
-    }
-
-    /// @notice Gets the binder address associated with a specific bound address.
-    /// @param _boundAddress The address that is bound.
-    /// @return The address of the binder, or address(0) if the address is not bound.
-    function getBinderAddress(
-        address _boundAddress
-    ) external view returns (address) {
-        return boundToBinder[_boundAddress];
-    }
-
-    // --- Core Game Logic ---
 
     // Implementation of IRiseRacers interface
     function click() external override nonReentrant whenNotPaused {
@@ -96,8 +58,17 @@ contract RiseRacers is IRiseRacers, Ownable, ReentrancyGuard, Pausable {
 
         player.currentStage = currentMilestone;
 
+        // Mint 1 crystal for the click
+        IRiseCrystals(registry.getRiseCrystals()).mint(msg.sender, 1e18);
+
+        // Mint extra crystals per turbo level
+        uint256 turboLevel = ICosmicParts(registry.getCosmicParts())
+            .getPartLevelByUser(msg.sender, ICosmicParts.PartType.Turbo);
+        IRiseCrystals(registry.getRiseCrystals()).mint(msg.sender, turboLevel);
+
         // Check for milestones
         emit Click(msg.sender, velocityGain, player.velocity);
+        emit PlayerUpdated(msg.sender, player);
     }
 
     function getPlayerInfo(
@@ -121,7 +92,7 @@ contract RiseRacers is IRiseRacers, Ownable, ReentrancyGuard, Pausable {
         uint256 baseClickPower = getBaseClickPower(player);
         uint256 universeMultiplier = IUniverseManager(
             registry.getUniverseManager()
-        ).getUniverseMultiplier(player);
+        ).getPlayerUniverseMultiplier(player);
         return baseClickPower * universeMultiplier;
     }
 

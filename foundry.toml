@@ -24,6 +24,7 @@ verbosity = 4
 base_sepolia = { key = "${API_KEY_BASESCAN}", url = "https://api-sepolia.basescan.org/api" }
 base_mainnet = { key = "${API_KEY_BASESCAN}", url = "https://api.basescan.org/api" }
 rise_testnet = { key = "${API_KEY_BASESCAN}", url = "https://explorer.testnet.riselabs.xyz/api?" }
+rise_staging = { key = "${API_KEY_BASESCAN}", url = "https://explorer.staging.riselabs.xyz/api?" }
 
 [fmt]
 bracket_spacing = true
@@ -76,3 +77,4 @@ celo_testnet = "https://alfajores-forno.celo-testnet.org"
 polygon_zkvm_testnet = "https://rpc.public.zkevm-test.net"
 holesky = "https://1rpc.io/holesky"
 rise_testnet = "https://testnet.riselabs.xyz"
+rise_staging = "https://staging.riselabs.xyz"

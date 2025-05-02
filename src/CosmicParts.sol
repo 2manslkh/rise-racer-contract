@@ -186,6 +186,17 @@ contract CosmicParts is ERC721URIStorage, ICosmicParts, Ownable, Curves {
         return parts[tokenId]; // Return the struct directly
     }
 
+    function getPartLevel(uint256 tokenId) public view returns (uint256) {
+        return parts[tokenId].level;
+    }
+
+    function getPartLevelByUser(
+        address player,
+        PartType partType
+    ) public view returns (uint256) {
+        return parts[equippedParts[player][partType]].level;
+    }
+
     function getTotalBoost(
         address player
     ) external view returns (uint256 totalPower) {
@@ -248,5 +259,39 @@ contract CosmicParts is ERC721URIStorage, ICosmicParts, Ownable, Curves {
         bytes4 interfaceId
     ) public view virtual override(ERC721URIStorage) returns (bool) {
         return super.supportsInterface(interfaceId);
+    }
+
+    function getShop(
+        address user
+    )
+        external
+        view
+        returns (
+            uint256,
+            uint256,
+            uint256,
+            uint256,
+            uint256,
+            uint256,
+            uint256,
+            uint256
+        )
+    {
+        // get user's parts
+        uint256 engineTokenId = equippedParts[user][PartType.Engine];
+        uint256 turboTokenId = equippedParts[user][PartType.Turbo];
+        uint256 chassisTokenId = equippedParts[user][PartType.Chassis];
+        uint256 wheelsTokenId = equippedParts[user][PartType.Wheels];
+
+        return (
+            getPartLevel(engineTokenId),
+            getPartLevel(turboTokenId),
+            getPartLevel(chassisTokenId),
+            getPartLevel(wheelsTokenId),
+            getEngineCost(getPartLevel(engineTokenId) + 1),
+            getTurboCost(getPartLevel(turboTokenId) + 1),
+            getChassisCost(getPartLevel(chassisTokenId) + 1),
+            getWheelCost(getPartLevel(wheelsTokenId) + 1)
+        );
     }
 }
